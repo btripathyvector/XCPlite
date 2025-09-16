@@ -668,6 +668,60 @@ static uint8_t XcpCalSegWriteMemory(uint32_t dst, uint16_t size, const uint8_t *
     return CRC_CMD_OK;
 }
 
+// Table 97 GET SEGMENT INFO command structure
+// Returns information on a specific SEGMENT.
+// If the specified SEGMENT is not available, ERR_OUT_OF_RANGE will be returned.
+static uint8_t XcpGetSegInfo(uint8_t segment, uint8_t mode, uint8_t seg_info, uint8_t map_index)
+{
+    (void)map_index;
+    // Check segment range
+    if (segment >= gXcp.CalSegList.count + 1) {
+        DBG_PRINTF_ERROR("invalid segment number: %u\n", segment);
+        return CRC_OUT_OF_RANGE;
+    }
+
+    // EPK segment (segment == 0) does not support calibration pages or mappings
+    if (segment == 0) {
+        if (mode == 0) {
+            return CRC_OUT_OF_RANGE;
+        } else if (mode == 1) {
+            // Mode 1: standard info, not supported for EPK
+            return CRC_OUT_OF_RANGE;
+        } else if (mode == 2) {
+            // Mode 2: address mapping info, not supported for EPK
+            return CRC_OUT_OF_RANGE;
+        }
+    }
+
+    // Calibration segment (segment >= 1)
+    tXcpCalSegIndex calseg = segment - 1;
+    tXcpCalSeg *c = &gXcp.CalSegList.calseg[calseg];
+    switch (mode) {
+    case 0: // Get basic address info for this SEGMENT
+        if (seg_info == 0) {
+            // SEGMENT_INFO == 0: address
+            // Store base address in CRM_GET_SEGMENT_INFO_BASIC_INFO
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = XcpGetCalSegBaseAddress(calseg);
+            return CRC_CMD_OK;
+        } else if (seg_info == 1) {
+            // SEGMENT_INFO == 1: length
+            // Store segment size in CRM_GET_SEGMENT_INFO_BASIC_INFO
+            CRM_GET_SEGMENT_INFO_BASIC_INFO = c->size;
+            return CRC_CMD_OK;
+        } else {
+            return CRC_OUT_OF_RANGE;
+        }
+        break;
+    case 1: // Get standard info for this SEGMENT
+        // Not implemented, return 0 or error
+        return 0;
+    case 2: // Get address mapping info for this SEGMENT
+        // Mode 2 is not supported
+        return CRC_OUT_OF_RANGE;
+    default:
+        return CRC_OUT_OF_RANGE;
+    }
+}
 #ifdef XCP_ENABLE_CAL_PAGE
 
 // Get active ecu or xcp calibration page
@@ -2324,10 +2378,20 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
 
+#ifdef XCP_ENABLE_SEG_INFO
+        case CC_GET_SEGMENT_INFO: {
+            check_len(CRO_GET_SEGMENT_INFO_LEN);
+            uint8_t mode = CRO_GET_SEGMENT_INFO_MODE;
+            uint8_t segment = CRO_GET_SEGMENT_INFO_SEGMENT_NUMBER;
+            uint8_t segInfo = CRO_GET_SEGMENT_INFO_SEGMENT_INFO;
+            uint8_t mapIndex = CRO_GET_SEGMENT_INFO_MAPPING_INDEX;
+            CRM_LEN = CRM_GET_SEGMENT_INFO_LEN;
+            check_error(XcpGetSegInfo(segment, mode, segInfo, mapIndex));
+        } break;
         /* case CC_GET_SEGMENT_INFO: break; not implemented */
         /* case CC_GET_PAGE_INFO: not implemented */
-
-#endif // XCP_ENABLE_CALSEG_LIST
+#endif // XCP_ENABLE_SEG_INFO
+#endif
 #endif // XCP_ENABLE_CAL_PAGE
 
 #ifdef XCP_ENABLE_CHECKSUM

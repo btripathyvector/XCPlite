@@ -53,6 +53,7 @@ static uint8_t (*callback_get_cal_page)(uint8_t segment, uint8_t mode) = NULL;
 static uint8_t (*callback_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode) = NULL;
 static uint8_t (*callback_init_cal)(uint8_t src_page, uint8_t dst_page) = NULL;
 static uint8_t (*callback_freeze_cal)(void) = NULL;
+static uint8_t (*callback_get_segment_info)(uint8_t segment, uint8_t mode, uint8_t seg_info,uint8_t map_index) = NULL;
 
 #ifdef XCP_ENABLE_APP_ADDRESSING
 static uint8_t (*callback_read)(uint32_t src, uint8_t size, uint8_t *dst) = NULL;
@@ -62,7 +63,8 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
                               uint8_t (*cb_freeze_daq)(uint8_t clear, uint16_t config_id), uint8_t (*cb_get_cal_page)(uint8_t segment, uint8_t mode),
                               uint8_t (*cb_set_cal_page)(uint8_t segment, uint8_t page, uint8_t mode), uint8_t (*cb_freeze_cal)(void),
                               uint8_t (*cb_init_cal)(uint8_t src_page, uint8_t dst_page), uint8_t (*cb_read)(uint32_t src, uint8_t size, uint8_t *dst),
-                              uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void))
+                              uint8_t (*cb_write)(uint32_t dst, uint8_t size, const uint8_t *src, uint8_t delay), uint8_t (*cb_flush)(void),
+                              uint8_t (*cb_get_segment_info)(uint8_t segment, uint8_t mode, uint8_t seg_info,uint8_t map_index))
 
 #else
 void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq)(void), uint8_t (*cb_start_daq)(void), void (*cb_stop_daq)(void),
@@ -86,6 +88,7 @@ void ApplXcpRegisterCallbacks(bool (*cb_connect)(void), uint8_t (*cb_prepare_daq
     callback_read = cb_read;
     callback_write = cb_write;
     callback_flush = cb_flush;
+    callback_get_segment_info = cb_get_segment_info;
 #endif
 }
 
@@ -403,6 +406,18 @@ uint8_t ApplXcpCalFreeze(void) {
 #endif
 
 #endif // XCP_ENABLE_CAL_PAGE
+
+/**************************************************************************/
+// Retrieve segment info callbacks
+/**************************************************************************/
+
+#ifdef XCP_ENABLE_GET_SEGMENT_INFO
+uint8_t ApplXcpGetSegmentInfo(uint8_t segment, uint8_t mode, uint8_t seg_info, uint8_t map_index) {
+    if (callback_get_segment_info != NULL)
+        return callback_get_segment_info(segment, mode, seg_info, map_index);
+    return CRC_CMD_UNKNOWN;
+}
+#endif
 
 /**************************************************************************/
 // DAQ resume

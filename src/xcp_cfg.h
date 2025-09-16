@@ -104,6 +104,7 @@
 
 #endif
 
+#define XCP_ENABLE_SEG_INFO
 // Enable checksum calculation command
 #define XCP_ENABLE_CHECKSUM
 #define XCP_CHECKSUM_TYPE XCP_CHECKSUM_TYPE_CRC16CCITT
