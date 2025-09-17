@@ -2379,20 +2379,70 @@ static uint8_t XcpAsyncCommand(bool async, const uint32_t *cmdBuf, uint8_t cmdLe
 #endif // XCP_ENABLE_FREEZE_CAL_PAGE
 
 #ifdef XCP_ENABLE_SEG_INFO
-        case CC_GET_SEGMENT_INFO: {
-            check_len(CRO_GET_SEGMENT_INFO_LEN);
-            uint8_t mode = CRO_GET_SEGMENT_INFO_MODE;
-            uint8_t segment = CRO_GET_SEGMENT_INFO_SEGMENT_NUMBER;
-            uint8_t segInfo = CRO_GET_SEGMENT_INFO_SEGMENT_INFO;
-            uint8_t mapIndex = CRO_GET_SEGMENT_INFO_MAPPING_INDEX;
-            CRM_LEN = CRM_GET_SEGMENT_INFO_LEN;
-            check_error(XcpGetSegInfo(segment, mode, segInfo, mapIndex));
-        } break;
-        /* case CC_GET_SEGMENT_INFO: break; not implemented */
-        /* case CC_GET_PAGE_INFO: not implemented */
+    case CC_GET_SEGMENT_INFO: {
+        check_len(CRO_GET_SEGMENT_INFO_LEN);
+        uint8_t mode = CRO_GET_SEGMENT_INFO_MODE;
+        uint8_t segment = CRO_GET_SEGMENT_INFO_SEGMENT_NUMBER;
+        uint8_t segInfo = CRO_GET_SEGMENT_INFO_SEGMENT_INFO;
+        uint8_t mapIndex = CRO_GET_SEGMENT_INFO_MAPPING_INDEX;
+        CRM_LEN = CRM_GET_SEGMENT_INFO_LEN;
+        check_error(XcpGetSegInfo(segment, mode, segInfo, mapIndex));
+    } break;
+#endif /* XCP_ENABLE_SEG_INFO */
+
+#ifdef XCP_ENABLE_CALSEG_LIST
+/* ------------------------------------------------------------------ */
+    /* GET_PAGE_INFO (Table 102)                                          */
+    /* Returns PAGE_PROPERTIES and INIT_SEGMENT (and optionally INIT_PAGE */
+    /* if the XCP header/macros define it).                               */
+    /* ------------------------------------------------------------------ */
+    case CC_GET_PAGE_INFO: {
+        check_len(CRO_GET_PAGE_INFO_LEN);
+        uint8_t segment = CRO_GET_PAGE_INFO_SEGMENT_NUMBER;
+        uint8_t page    = CRO_GET_PAGE_INFO_PAGE_NUMBER;
+
+        DBG_PRINTF3("GET PAGE INFO VALUES gXcp.CalSegList.count=%u\n", gXcp.CalSegList.count);
+        /* Segment 0 (EPK) has no pages */
+        if (segment > gXcp.CalSegList.count)
+            error(CRC_OUT_OF_RANGE);
+        if (page > 1) /* Only default(0) and working(1) implemented */
+            error(CRC_PAGE_NOT_VALID);
+
+        tXcpCalSeg *c = &gXcp.CalSegList.calseg[segment-1];
+
+        uint8_t props = 0;
+        // Bit 0: ECU_ACCESS_WITHOUT_XCP
+        // Bit 1: ECU_ACCESS_WITH_XCP
+        // Bit 2: XCP_READ_ACCESS_WITHOUT_ECU
+        // Bit 3: XCP_READ_ACCESS_WITH_ECU
+        // Bit 4: XCP_WRITE_ACCESS_WITHOUT_ECU
+        // Bit 5: XCP_WRITE_ACCESS_WITH_ECU
+
+        // Determines if the ECU is currently accessing the working calibration page by atomically loading the value of 'ecu_access' with relaxed memory ordering and comparing it to 'XCP_CALPAGE_WORKING_PAGE'.
+        bool ecu_on_working = (atomic_load_explicit(&c->ecu_access, memory_order_relaxed) == XCP_CALPAGE_WORKING_PAGE);
+        bool xcp_on_working = (c->xcp_access == XCP_CALPAGE_WORKING_PAGE);
+
+        // PAGE 0: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_DONT_CARE
+        // PAGE 1: ECU_ACCESS_DONT_CARE, XCP_READ_ACCESS_DONT_CARE, XCP_WRITE_ACCESS_NOT_ALLOWED
+        if (page == XCP_CALPAGE_WORKING_PAGE) {
+            // All bits 0..5 can be set for "don't care"
+            props |= 0x3F;
+        } else if (page == XCP_CALPAGE_DEFAULT_PAGE) {
+            // All bits 0..3 can be set for "don't care", but XCP write access not allowed (bits 4,5 not set)
+            props |= 0x0F;
+        }
+
+        CRM_LEN = CRM_GET_PAGE_INFO_LEN;
+        CRM_GET_PAGE_INFO_PROPERTIES = props;
+        CRM_GET_PAGE_INFO_INIT_SEGMENT = (uint8_t)(XCP_CALPAGE_DEFAULT_PAGE);
+
+#else  /* !XCP_ENABLE_CALSEG_LIST */
+        error(CRC_OUT_OF_RANGE);
+#endif
+    } break;
+
 #endif // XCP_ENABLE_SEG_INFO
 #endif
-#endif // XCP_ENABLE_CAL_PAGE
 
 #ifdef XCP_ENABLE_CHECKSUM
         case CC_BUILD_CHECKSUM: {
