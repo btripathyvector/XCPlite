@@ -708,6 +708,28 @@ static uint8_t XcpGetSegInfo(uint8_t segment, uint8_t mode, uint8_t seg_info, ui
             // Store segment size in CRM_GET_SEGMENT_INFO_BASIC_INFO
             CRM_GET_SEGMENT_INFO_BASIC_INFO = c->size;
             return CRC_CMD_OK;
+
+            // vector specific seg_info number to retrieve segment name
+            /**
+             * Table: 0xE8 GET SEGMENT INFO Command Structure
+             *
+             * | Position | Type | Description                                                                 |
+             * |----------|------|-----------------------------------------------------------------------------|
+             * | 0        | BYTE | Command Code = 0xE8                                                          |
+             * | 1        | BYTE | Mode:                                                                        |
+             * |          |      |   0 = get basic address info for this SEGMENT                                |
+             * |          |      |   1 = get standard info for this SEGMENT                                     |
+             * |          |      |   2 = get address mapping info for this SEGMENT                              |
+             * | 2        | BYTE | SEGMENT_NUMBER [0,1,..MAX_SEGMENTS-1]                                        |
+             * | 3        | BYTE | SEGMENT_INFO:                                                                |
+             * |          |      |   Mode 0: 0 = address, 1 = length  2 = Vector specific, set gXcp.MtaPtr      |
+             * |          |      |   Mode 1: do not care                                                        |
+             * |          |      |   Mode 2: 0 = source address, 1 = destination address, 2 = length address    |
+             */
+        } else if (seg_info == 2) {
+            gXcp.MtaPtr = (uint8_t *)c->name;
+            gXcp.MtaExt = XCP_ADDR_EXT_PTR;
+            return CRC_CMD_OK;
         } else {
             return CRC_OUT_OF_RANGE;
         }
